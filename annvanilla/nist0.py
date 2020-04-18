@@ -82,11 +82,11 @@ def batchTest2(model,x,y,ll):
 
     
 #%% settings    
-hiddenLayers=np.array([50])
-alpha=0.1
+hiddenLayers=np.array([25])
 nt=50 # number of learning passes thru the whole data set
+alpha=0.1
 batchSize=10 # sample size has to be divisible by this so far
-lambd=0.005
+lambd=0.0001
 
 
 # things to adjust
@@ -167,8 +167,9 @@ for ll in range(nt):
         
     batchTest(model,x,y,ll)
     batchTest(model,xtest,ytest,ll)
+    model.printWeightStats()
     t1=time.time()
-    print('Done iteration %i after %.2f sec.' %(ll,(t1-t0)))
+    print('Done iteration %i after %.2f sec.\n' %(ll,(t1-t0)))
 
 
 
