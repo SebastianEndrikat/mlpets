@@ -83,6 +83,8 @@ def batchTest2(model,x,y,ll):
     
 #%% settings    
 hiddenLayers=np.array([25])
+activFuns=np.array(['relu'])
+#activFuns=np.array(['sigmoid'])
 nt=50 # number of learning passes thru the whole data set
 alpha=0.1
 batchSize=10 # sample size has to be divisible by this so far
@@ -108,7 +110,7 @@ nx=len(x) # number of available training samples
 #dispImage(x[3960])
 nin=20*20
 nout=10
-model=ann(nin,nout,hiddenLayers,alpha=alpha,lambd=lambd)
+model=ann(nin,nout,hiddenLayers,alpha=alpha,lambd=lambd,activFuns=activFuns)
 
 ## reduce weights to start:
 #for i in range(model.nLayers-1):

@@ -17,14 +17,16 @@ import numpy as np
 # TODO
 # lists instead of dicts?
 # write a training wrapper for blind use without interest in performance details
-# assign one of many activation functions (per layer)
 
 
 class ann():
     
-    def __init__(self,nin,nout,hiddenLayers,alpha=0.1,lambd=0.0):
+    def __init__(self,nin,nout,hiddenLayers,activFuns=None,alpha=0.1,lambd=0.0):
         # len(hiddenLayers) = number of hidden layers
         # elements in hiddenLayers are number of elements in each layer
+        # activFuns=np.array(['sigmoid','relu']) ...  strings for each hidden layer
+        # input layer doesnt need activation and output layer is always sigmoid
+        # if activFuns==None, sigmoid is used for all
         
         nHiddenLayers=len(hiddenLayers)
         self.nLayers=nHiddenLayers+2
@@ -36,7 +38,7 @@ class ann():
         
         # dont actually need to keep Z[0], what would be for the input layer
         self.Z=dict.fromkeys(range(1,self.nLayers)) # outputs prior to activation function
-        for i in range(self.nLayers):
+        for i in range(1,self.nLayers):
             self.Z[i]=np.zeros(self.layerSize[i]) # will be overwritten in forwardProp
             
         self.a=dict.fromkeys(range(self.nLayers)) # outputs after activation
@@ -64,36 +66,55 @@ class ann():
         self.db=dict.fromkeys(range(self.nLayers-1))
         for i in range(self.nLayers-1):
             self.db[i]=np.zeros(self.layerSize[i+1])
-        
+       
+        # assign activation function to layers
+        if np.any(activFuns==None):
+            activFuns=np.array([])
+            for i in range(nHiddenLayers):
+                activFuns=np.append(activFuns,'sigmoid') 
+        self.activFuns=dict.fromkeys(range(1,self.nLayers))
+        self.dactivFuns=dict.fromkeys(range(1,self.nLayers))
+        for i in range(1,self.nLayers-1): # over the hidden layers
+            if activFuns[i-1]=='sigmoid':
+               self.activFuns[i]=self.sigmoid
+               self.dactivFuns[i]=self.dsigmoid
+            elif activFuns[i-1]=='relu':
+               self.activFuns[i]=self.relu
+               self.dactivFuns[i]=self.drelu
+        self.activFuns[self.nLayers-1]=self.sigmoid # output layer
+        self.dactivFuns[self.nLayers-1]=self.dsigmoid
+
+
+
         return
     
-    def activFun(self,x):
+    def sigmoid(self,x):
         return 1./(1.+np.exp(-x)) # logistic function
-    def dactivFundx(self,x): # analytic derivative
+    def dsigmoid(self,x): # analytic derivative
         return np.exp(-x)/(1.+np.exp(-x))**2.
     
-#    def activFun(self,x):
-#        n=len(x)
-#        return np.max(np.vstack((np.zeros(n),x)),axis=0) # relu max(0,x)
-#    def dactivFundx(self,x):
-#        n=len(x)
-#        out=np.zeros(n)
-#        out[x>=0.]=1.
-#        return out
+    def relu(self,x):
+        n=len(x)
+        return np.max(np.vstack((np.zeros(n),x)),axis=0) # relu max(0,x)
+    def drelu(self,x):
+        n=len(x)
+        out=np.zeros(n)
+        out[x>=0.]=1.
+        return out
     
     
     def forwardProp(self,ain):
         self.a[0]=ain
         for i in range(self.nLayers-1):
             self.Z[i+1] = np.matmul(self.W[i],self.a[i]) + self.b[i]
-            self.a[i+1] = self.activFun(self.Z[i+1])
+            self.a[i+1] = self.activFuns[i+1](self.Z[i+1])
         return self.a[self.nLayers-1]
     
     def backwardProp(self,enext):
         # pass the error from the output layer to learn from one single sample
         for i in range(self.nLayers-2,-1,-1): # backwards
             e=np.matmul(np.transpose(self.W[i]),enext) # error at this layer
-            grad=self.alpha*enext*self.dactivFundx(self.Z[i+1]) 
+            grad=self.alpha*enext*self.dactivFuns[i+1](self.Z[i+1]) 
             
             # learn!
             # Delta-weights is grad dot a (a should be transposed but no need for numpy)
@@ -116,12 +137,6 @@ class ann():
         for i in range(self.nLayers-1):
             self.dW[i]*=0. # elementwise
             self.db[i]*=0.
-            
-#        regu=0.0
-#        for i in range(self.nLayers-1):
-#            regu+=np.sum(self.W[i]**2.)
-##        regu *= self.lambd/(2.*nx)
-#        regu *= self.lambd/2.
     
         # call forward for every sample and add to dW and db.
         for s in range(nx):
@@ -129,7 +144,7 @@ class ann():
             
             # backprop:
             for i in range(self.nLayers-2,-1,-1): # backwards
-                grad=e*self.dactivFundx(self.Z[i+1]) 
+                grad=e*self.dactivFuns[i+1](self.Z[i+1]) 
                 
                 # Delta-weights is grad dot a (a should be transposed but no need for numpy)
                 # Delta-bias is just the grad
@@ -156,20 +171,24 @@ class ann():
         return
     
     def printWeightStats(self):
+        Wmean,Wmedian,Wstd=getWeightStats()
+
+        print('Weights stats: ')
+        print('mean(W)    = %.6f' %Wmean)
+        print('median(W)  = %.6f' %Wmedian)
+        print('rms(W)     = %.6f' %Wstd)
+        
+        return
+
+    def getWeightStats(self):
         W=np.array([])
         for i in range(self.nLayers-1):
             W=np.append(W,self.W[i].ravel())
         Wmean=np.mean(W)
         Wmedian=np.median(W)
-        W2mean=np.mean(W**2.)
         Wstd=np.std(W)
-        print('Weights stats: ')
-        print('mean(W)    = %.6f' %Wmean)
-        print('median(W)  = %.6f' %Wmedian)
-        print('mean(W**2) = %.6f' %W2mean)
-        print('rms(W)     = %.6f' %Wstd)
         
-        return Wmean, Wmedian, W2mean, Wstd
+        return Wmean, Wmedian, Wstd
 
 
 

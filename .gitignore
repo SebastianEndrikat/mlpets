@@ -1,4 +1,6 @@
 desktop.ini                 
 */desktop.ini
-annvanilla/*.png
+*/*.pyc
+#annvanilla/*.png
+annvanilla/stats/ 
 digits/

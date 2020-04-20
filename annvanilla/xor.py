@@ -1,3 +1,4 @@
+#!/usr/bin/env python2
 # testing a neural net on predicting the return of exclusive or
 import numpy as np
 from annvanilla import ann
@@ -43,6 +44,7 @@ plt.legend()
 plt.xlabel('learning iteration')
 plt.ylabel('y'); plt.ylim([0,1])
 plt.title('alpha=%f' %model.alpha)
+plt.show()
 if 0:
     plt.savefig('xorTest_alpha=%.4f.png' %model.alpha,dpi=400,bbox_inches='tight')
     
