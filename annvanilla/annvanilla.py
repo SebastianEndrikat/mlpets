@@ -171,7 +171,7 @@ class ann():
         return
     
     def printWeightStats(self):
-        Wmean,Wmedian,Wstd=getWeightStats()
+        Wmean,Wmedian,Wstd=self.getWeightStats()
 
         print('Weights stats: ')
         print('mean(W)    = %.6f' %Wmean)

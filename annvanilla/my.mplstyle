@@ -3,9 +3,6 @@
 
 # Seb, 2017-11-21
 
-# link to this file in ~/.config/matplotlib
-# then go plt.style.use('seb0') to use it
-# or easier yet: plt.style.use('/home/sebastian/myFiles/Dropbox/phd/codeLib/python/seb0.mplstyle')
 
 
 
