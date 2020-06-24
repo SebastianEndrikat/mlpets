@@ -12,3 +12,12 @@ Recurrent neural networks, both written from scratch and using tensorflow
 ### rnn0
 Counting integers in a binary time series
 
+### rnn1
+Adding two binary numbers as tho they are time series
+
+## Snake
+Neuroevolution of snake's decision making process for the popular computer game
+
+
+
+
