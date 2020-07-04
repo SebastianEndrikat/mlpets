@@ -5,10 +5,14 @@
 
 import numpy as np
 np.random.seed(42)
+import matplotlib
+matplotlib.use('Agg') # Bypass the need to install Tkinter GUI framework
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-import os
+import os, sys
 import errno
+from time import gmtime, strftime
+import time
 from copy import deepcopy
 
 
@@ -19,6 +23,9 @@ def mkdir(thedir):
         if e.errno != errno.EEXIST:
             raise
     return
+
+def timeStr():
+    return strftime("%Y-%m-%d_%H:%M:%S", gmtime())
 
 class Snake():
     
@@ -51,10 +58,10 @@ class Snake():
         # assign activation function to layers
         if np.any(activaStrs==None): # no strings provided
             activaStrs=[]
-            for i in range(self.nLayers):
+            for i in range(self.nLayers-1):
                 activaStrs.append('sigmoid') 
         self.activFuns=[] # the functions, not the strings
-        for i in range(self.nLayers):
+        for i in range(self.nLayers-1):
             if activaStrs[i]=='sigmoid':
                self.activFuns.append(self.sigmoid)
             elif activaStrs[i]=='relu':
@@ -87,9 +94,11 @@ class Snake():
             # or nudge existing ones
             # or swap some weights randomly
             
-            # nudge by random factor between -2 and 2
-            wnudge=4*np.random.rand(self.layerSize[i+1],self.layerSize[i]) -2.
-            bnudge=4*np.random.rand(self.layerSize[i+1]) - 2.
+            # nudge by random factor in range sp=std(W)
+            sp=np.std(self.W[i])
+            wnudge=sp*np.random.rand(self.layerSize[i+1],self.layerSize[i]) -sp/2.
+            sp=np.std(self.b[i])
+            bnudge=sp*np.random.rand(self.layerSize[i+1]) - sp/2.
             newW=np.copy(self.W[i])*wnudge
             newb=np.copy(self.b[i])*bnudge
             
@@ -121,7 +130,7 @@ def mate(s0,s1,mutationRate=0.01):
     
     return new
     
-def fitness(snake,nx,ny,nutrition=100,gui=False,imgDir='gen'):
+def fitness(snake,nx,ny,nutrition=100,noFood=False,gui=False,imgDir='gen'):
     # create an environment with one snoke
     # step in time until the snake dies, return score
     
@@ -131,8 +140,12 @@ def fitness(snake,nx,ny,nutrition=100,gui=False,imgDir='gen'):
     
     if gui:
         mkdir(imgDir)
-    foodx=np.random.randint(low=0,high=nx)
-    foody=np.random.randint(low=0,high=ny)
+    if noFood:
+        foodx=-10
+        foody=-10 # outside of domain
+    else:
+        foodx=np.random.randint(low=0,high=nx)
+        foody=np.random.randint(low=0,high=ny)
     
     sx=-np.ones(nx*ny,dtype=int)*9 # -9 means not part of snake
     sy=-np.ones(nx*ny,dtype=int)*9
@@ -143,30 +156,54 @@ def fitness(snake,nx,ny,nutrition=100,gui=False,imgDir='gen'):
     sy[0]=np.floor(ny/2.)
     sy[1]=sy[0]+1
     direction=2 # initial direction is down
-    n=2 # length of snake. i.e. snake_[:n] are non-negative locations
+    n=2 # length of snake. i.e. sx[:n] are non-negative locations
     
-    sensor=np.zeros(10) 
-        # 4 position of head-1
-        # dist to 4 walls
-        # 2 dist to food
+    sensor=np.zeros(11) 
     ll=0 # time step
     alive=True
     score=0.
     maxlifespan=2*nutrition
-    while alive and ll<maxlifespan:
+    while alive:
         
         if gui:
             saveField(score,nx,ny,sx,sy,foodx,foody,theFile=imgDir+'/%08i.png' %ll)
             
         # sense:
-        sensor[0:4]=0. # wipe
-        sensor[direction]=1. # true for direction of head-1
+        # self-awareness only the neck:
+#        sensor[0:4]=0. # wipe
+#        sensor[direction]=1. # true for direction of head-1
+        # self-awareness neck and tail:
+#        sensor[0]=sx[1]-sx[0] # xdistance to neck
+#        sensor[1]=sy[1]-sy[0] # ydistance to neck
+#        sensor[2]=sx[n-1]-sx[0] # xdistance to tail
+#        sensor[3]=sy[n-1]-sy[0] # ydistance to tail
+        # self-awareness is north/east/south/west free or snake?
+#        sensor[0]=np.any(np.logical_and((sx[0]+0)==sx, (sy[0]+1)==sy))
+#        sensor[1]=np.any(np.logical_and((sx[0]+1)==sx, (sy[0]+0)==sy))
+#        sensor[2]=np.any(np.logical_and((sx[0]+0)==sx, (sy[0]-1)==sy))
+#        sensor[3]=np.any(np.logical_and((sx[0]-1)==sx, (sy[0]+0)==sy))
+        # self-awareness distance to snake in 4 directions
+#        distToNorthernBodyParts=sy[np.isin(sy[sy>sy[0]],sy[0])]-sy[0]
+        subset=sy[sy>sy[0]]
+        sensor[0]=np.min(np.append(      subset[np.isin(subset,sy[0])]-sy[0],ny)) # north
+        subset=sx[sx>sx[0]]
+        sensor[1]=np.min(np.append(      subset[np.isin(subset,sx[0])]-sx[0],nx)) # east
+        subset=sy[sy<sy[0]]
+        sensor[2]=np.min(np.append(sy[0]-subset[np.isin(subset,sy[0])],      ny)) # south
+        subset=sx[sx<sx[0]]
+        sensor[3]=np.min(np.append(sx[0]-subset[np.isin(subset,sx[0])],      nx)) # west
+        # wall sensing:
         sensor[4]=ny-1-sy[0] # number of free fields to the north
         sensor[5]=nx-1-sx[0] # number of free fields to the east
         sensor[6]=sy[0] # number of free fields to the south
         sensor[7]=sx[0] # number of free fields to the west
-        sensor[8]=foodx-sx[0]
-        sensor[9]=foody-sy[0]
+        if noFood:
+            sensor[8]=0.
+            sensor[9]=0.
+        else:
+            sensor[8]=foodx-sx[0]
+            sensor[9]=foody-sy[0]
+        sensor[10]=n # body length
         
         # decide:
         direction=snake.decide(sensor)
@@ -187,10 +224,32 @@ def fitness(snake,nx,ny,nutrition=100,gui=False,imgDir='gen'):
         elif direction==3: # left
             sx[0]=sx[1]-1
             sy[0]=sy[1]
-        
+            
+        # eat food or move tail
+        if sx[0]==foodx and sy[0]==foody: # ate
+            n+=1 # increment snake length
+            score+=1.0
+            maxlifespan+=nutrition
+            # check if completed the game
+            if n==int(np.floor(0.8*nx*ny)): # set some max snake length relative to domain size
+                alive=False
+                causeOfDeath=3 # won!
+                score+=10. # big reward for winning
+            # create new food outside of snake 
+            # TODO without guessing where the snake is 
+            while np.any(np.logical_and(np.isin(sx,foodx),np.isin(sy,foody))): # food is in snake
+                foodx=np.random.randint(low=0,high=nx)
+                foody=np.random.randint(low=0,high=ny)
+            
+        else: #did not eat
+            sx[n]=-9
+            sy[n]=-9 # no longer part of the snake
+            
+            
         # check its not walked into a wall:
         if sx[0]==-1 or sy[0]==-1 or sx[0]==nx or sy[0]==ny:
             alive=False
+            causeOfDeath=0
             
         # periodic domain:
 #        if sx[0]==-1: sx[0]=nx-1
@@ -199,37 +258,34 @@ def fitness(snake,nx,ny,nutrition=100,gui=False,imgDir='gen'):
 #        if sy[0]==ny: sy[0]=0
         
         # check its not walked into itself:
-        #TODO check everywhere
-        if sx[0]==sx[2] and sy[0]==sy[2]:
-            alive=False
-            
-        if sx[0]==foodx and sy[0]==foody: # ate
-            n+=1 # increment snake length
-            score+=0.5
-            maxlifespan+=nutrition
-            # check if completed the game
-            if n==(nx*ny):
+        for i in range(2,n):
+            if sx[0]==sx[i] and sy[0]==sy[i]:
                 alive=False
-            # create new food outside of snake 
-            # TODO without guessing where the snake is and whole snake, not just head
-            while sx[0]==foodx and sy[0]==foody:
-                foodx=np.random.randint(low=0,high=nx)
-                foody=np.random.randint(low=0,high=ny)
-            
-        else: #did not eat
-            sx[n]=-9
-            sy[n]=-9 # no longer part of the snake
+                causeOfDeath=1 # self bite
         
-        # fractional score as life time award for a total of 1 per food
+        # fractional score as life time award 
         if alive:
-            score += 0.5/nutrition
+            score += 0.005/nutrition # much less than food to reward direct path to food
         
         ll +=1 # end of time step
+        if ll==maxlifespan:
+            alive=False
+            causeOfDeath=2 # starvation
     
     if gui:
         saveScoreImg(score,nx,ny,theFile=imgDir+'/%08i.png' %(ll))
+        
+    return score,causeOfDeath
+
+
     
-    return score
+
+
+
+
+
+
+
 
 def imgSetup(nx,ny):
     mpl.rcParams['figure.subplot.left'] = 0.01
@@ -251,7 +307,8 @@ def imgSetup(nx,ny):
     
 def saveField(score,nx,ny,sx,sy,foodx,foody,theFile):
     thisax=imgSetup(nx,ny)
-    thisax.plot(foodx,foody,'rX')
+    if foodx>=0 and foody>=0.:
+        thisax.plot(foodx,foody,'rX')
     n=np.sum(sx>-9)
     color=(0.5,0.5,0.5)
     for i in range(n):
@@ -274,13 +331,14 @@ def saveScoreImg(score,nx,ny,theFile):
 
 def trainMating(nx,ny,popsize,ngen,mutationRate,hiddenLayers,activations,nutrition,baseDir,plotFreq=9e9):
     
+    mkdir(baseDir)
     # network input and output layers
-    layers=np.append(np.append(10,hiddenLayers),4)
+    layers=np.append(np.append(11,hiddenLayers),4)
     
     # build initial population
     pop=[]
     for i in range(popsize):
-        pop.append(Snake(layers))
+        pop.append(Snake(layers,activaStrs=activations))
     
     popnew=np.copy(pop) # initialize
     for gen in range(ngen):
@@ -288,7 +346,7 @@ def trainMating(nx,ny,popsize,ngen,mutationRate,hiddenLayers,activations,nutriti
         # get scores
         scores=np.zeros(popsize)
         for i in range(popsize):
-            scores[i]=fitness(pop[i],nx,ny,nutrition,gui=False,imgDir='')**2. # SQUARED
+            scores[i],cod=fitness(pop[i],nx,ny,nutrition,gui=False,imgDir='')**2. # SQUARED
 #        scores[scores<np.median(scores)]=0. # chuck out lower half of the population
         p=scores/np.sum(scores) # probability of each snake mating
         
@@ -302,7 +360,8 @@ def trainMating(nx,ny,popsize,ngen,mutationRate,hiddenLayers,activations,nutriti
             
         # plot highest score of each gen
         winner=np.argmax(scores)
-        print('Gen=%i, highscore=%f, median score=%f, mean score=%f' %(gen,scores[winner], np.median(scores), np.mean(scores)))
+        print(timeStr()+' Gen=%i, highscore=%f, median score=%f, mean score=%f' %(gen,scores[winner], np.median(scores), np.mean(scores))); sys.stdout.flush()
+        writeLog(baseDir+'.log',gen,scores,winner)
         if np.mod(gen,plotFreq)==0.: # let the best snake run again in a new scenario
             fitness(pop[winner],nx,ny,nutrition,gui=True,imgDir=baseDir+'/gen%06i' %gen)
             vFileName='gen%06i' %gen
@@ -314,24 +373,77 @@ def trainMating(nx,ny,popsize,ngen,mutationRate,hiddenLayers,activations,nutriti
     
     return
 
-def trainReplace(nx,ny,popsize,ngen,mutationRate,hiddenLayers,activations,nutrition,baseDir,plotFreq=9e9):
+def trainReplace(nx,ny,popsize,ngen,mutationRate,
+                 hiddenLayers,activations,nutrition,
+                 baseDir,plotFreq=9e9,pop=None):
     # replace low scoring individuals by mutations of high scoring ones
     
+    mkdir(baseDir)
     # network input and output layers
-    layers=np.append(np.append(10,hiddenLayers),4)
+    layers=np.append(np.append(11,hiddenLayers),4)
     
     # build initial population
-    pop=[]
-    for i in range(popsize):
-        pop.append(Snake(layers))
+    if np.any(pop==None):
+        pop=[]
+        for i in range(popsize):
+            pop.append(Snake(layers,activaStrs=activations))
+    scores=np.zeros(popsize)
+    reps=10
+    cod=np.zeros((popsize,reps))
+    
+    for gen in range(ngen):
+        
+        # get scores
+        for i in range(popsize):
+            if scores[i]==0.:
+                for run in range(reps):
+                    sco,cod[i,run]= fitness(pop[i],nx,ny,nutrition,gui=False,imgDir='')
+                    scores[i] += sco/float(reps)
+        ind=np.argsort(scores)[::-1] # indeces of individuals, starting with highest score
+        
+        # plot highest score of each gen
+        winner=ind[0]
+        print(timeStr()+' Gen=%i, highscore=%f, median score=%f, mean score=%f' %(gen,scores[winner], np.median(scores), np.mean(scores))); sys.stdout.flush()
+        writeLog(baseDir+'.log',gen,scores,winner,cod)
+        if np.mod(gen,plotFreq)==0.: # let the best snake run again in a new scenario
+            fitness(pop[winner],nx,ny,nutrition,gui=True,imgDir=baseDir+'/gen%06i' %gen)
+            vFileName='gen%06i' %gen
+            with open(baseDir+'/gen%06i/makeVideo.sh' %gen, 'w') as fid:
+                fid.write('#!/bin/bash \nffmpeg -framerate 2 -i %08d.png -c:v libx264 -r 30 -pix_fmt yuv420p '+vFileName+'.mp4 \n')
+        
+        # replace loser half of population
+        for i in range(int(np.floor(popsize/2.))):
+            iwinner=ind[i]
+            iloser=ind[popsize-1-i]
+            pop[iloser]=deepcopy(pop[iwinner])
+            pop[iloser].mutate(rate=mutationRate)
+            scores[iloser]=0. # will need to re evaluate
+    
+    return pop
+
+def trainReplaceNoFood(nx,ny,popsize,ngen,mutationRate,
+                       hiddenLayers,activations,nutrition,
+                       baseDir,plotFreq=9e9,pop=None):
+    # replace low scoring individuals by mutations of high scoring ones
+    # dont train to find food, only to avoid walls
+    # TODO no need to rescore unchanged snakes
+    
+    mkdir(baseDir)
+    # network input and output layers
+    layers=np.append(np.append(11,hiddenLayers),4)
+    
+    # build initial population
+    if np.any(pop==None):
+        pop=[]
+        for i in range(popsize):
+            pop.append(Snake(layers,activaStrs=activations))
     
     for gen in range(ngen):
         
         # get scores
         scores=np.zeros(popsize)
-        for runs in range(10):
-            for i in range(popsize):
-                scores[i] += fitness(pop[i],nx,ny,nutrition,gui=False,imgDir='')
+        for i in range(popsize):
+            scores[i],cod = fitness(pop[i],nx,ny,nutrition,noFood=True,gui=False,imgDir='')
         ind=np.argsort(scores)[::-1] # indeces of individuals, starting with highest score
         
         # replace loser half of population
@@ -344,27 +456,66 @@ def trainReplace(nx,ny,popsize,ngen,mutationRate,hiddenLayers,activations,nutrit
         
         # plot highest score of each gen
         winner=ind[0]
-        print('Gen=%i, highscore=%f, median score=%f, mean score=%f' %(gen,scores[winner], np.median(scores), np.mean(scores)))
+        print(timeStr()+' Gen=%i, highscore=%f, median score=%f, mean score=%f' %(gen,scores[winner], np.median(scores), np.mean(scores))); sys.stdout.flush()
+        writeLog(baseDir+'.log',gen,scores,winner)
         if np.mod(gen,plotFreq)==0.: # let the best snake run again in a new scenario
-            fitness(pop[winner],nx,ny,nutrition,gui=True,imgDir=baseDir+'/gen%06i' %gen)
+            fitness(pop[winner],nx,ny,nutrition,noFood=True,gui=True,imgDir=baseDir+'/gen%06i' %gen)
             vFileName='gen%06i' %gen
             with open(baseDir+'/gen%06i/makeVideo.sh' %gen, 'w') as fid:
                 fid.write('#!/bin/bash \nffmpeg -framerate 2 -i %08d.png -c:v libx264 -r 30 -pix_fmt yuv420p '+vFileName+'.mp4 \n')
         
     
+    return pop
+
+def writeLog(theFile,gen,scores,winner,cod=None):
+    if np.any(cod!=None):
+        n=np.prod(cod.size)
+        wall=np.sum(cod==0.)/float(n) # this fraction ran into a wall
+        bite=np.sum(cod==1.)/float(n) # this fraction bit itself
+        food=np.sum(cod==2.)/float(n) # this fraction ran out of steps
+        win =np.sum(cod==3.)/float(n) # this fraction ran out of steps
+    else:
+        wall=0. # not available
+        bite=0.
+        food=0.
+        win=0.
+    with open(theFile,'a') as fid:
+        fid.write('%04i\t%.8f\t%.8f\t%.8f\t%i\t%.8f\t%.8f\t%.8f\t%.8f\n'
+                     %(gen,scores[winner], np.median(scores), np.mean(scores),time.time(),wall,bite,food,win))
     return
 
 
+nx=20
+ny=20
+popsize=1000
+hiddenLayers=np.array([20,20,20])
+#hiddenLayers=np.array([20]) # one hidden layer doesnt work at all! high score 1.21 after 300 gens
 
+#pop=trainReplaceNoFood(nx,ny,
+#      popsize,
+#      ngen=101,
+#      mutationRate=0.1,
+#      hiddenLayers=hiddenLayers,
+#      activations=np.array(['relu','relu','relu']),
+##      activations=np.array(['sigmoid','sigmoid','sigmoid']),
+##      activations=np.array(['tanh','tanh','tanh']),
+#      nutrition=50, # steps gained per food. should correspond to map size
+##      baseDir='/home/sebastian/tmp/snake/run3/noFood',
+#      baseDir='run3/noFood',
+#      plotFreq=20)
 
-trainReplace(nx=20,ny=20,
-      popsize=2000,
-      ngen=101,
+pop=trainReplace(nx,ny,
+      popsize,
+      ngen=1001,
       mutationRate=0.1,
-      hiddenLayers=np.array([30,30]),
-#      activations=np.array(['relu','relu']),
-#      activations=np.array(['sigmoid','sigmoid']),
-      activations=np.array(['tanh','tanh']),
+      hiddenLayers=hiddenLayers,
+      activations=np.array(['relu','relu','relu','relu']),
+#      activations=np.array(['sigmoid','sigmoid','sigmoid']),
+#      activations=np.array(['tanh','tanh','tanh']),
       nutrition=50, # steps gained per food. should correspond to map size
-      baseDir='/home/sebastian/tmp/snake/run0',
-      plotFreq=10)
+#      baseDir='/home/sebastian/tmp/snake/oneLayer',
+      baseDir='run5',
+      plotFreq=20, pop=None)
+
+
+
