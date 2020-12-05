@@ -24,12 +24,12 @@ class mydqn():
         self.verbose=verbose
         self.memory={'state':[], 'rewards':[]}
         self.epsilon=1. # exploration rate initialised as 1.0
+        self.gamma=0.8 # discount factor of future rewards
         
         return
 
     def episode(self):
         # play one episode, remember what happend to learn from later
-        # TODO delayed reward: distribute rewards in memory after the episode. Thats where Bellman comes in?
         
         # start a game by getting the inital state of the environment
         state,gameover=self.env.initialise()
@@ -37,6 +37,8 @@ class mydqn():
             self.env.render()
         
         score=0. # accumulated rewards
+        actions=[]
+        rewards=[]
         while not gameover:
             # decide on exploitation or exploration and determine action
             if np.random.rand(1)>self.epsilon: # exploit, be greedy
@@ -47,24 +49,35 @@ class mydqn():
             
             # remember the state prior to taking the step
             self.memory['state'].append(state)
+            actions.append(action)
             
             # take a step in the game
             state, gameover, reward=self.env.step(action)
+            rewards.append(reward)
             score+=reward
             if self.verbose:
                 self.env.render()
                 print('Step reward = %f' %(reward))
                 
-            # memorise what just happened:
-            # in a form that the NN expects for backprop
-            # TODO check if this makes sense: the target vector (i.e. the true reward),
-            # has the received reward for the action taken and reward=0 for the action(s) 
-            # that were not actually taken. Maybe they would have brought in a higher
-            # reward but we dont know so its 0 ... does that make sense?
-            rewards=np.zeros(self.env.nActions)
-            rewards[action]=reward
-            self.memory['rewards'].append(rewards)
         
+        # reward to memorize is G, which is a function of the rewards of 
+        # all (some) of the future rewards in this episode
+        # G is zero for all actions not taken, because we cant learn from those 
+        # i.e. the gradient descent wont change the network when the loss is zero
+        # it's not that those predictions were perfect, but we just cant learn from
+        # actiones never taken
+        nsteps=len(actions)
+        for ll in range(nsteps):
+            G=np.zeros(self.env.nActions)
+            for ill in range(ll,nsteps): # for all steps taken hereafter
+                # the discount factor gamma decreases for steps taken further into the future
+                # for this step, number ill, gamma is one. For future steps, it's gamma, gamma**2, gamma**3 and so on
+                g=rewards[ill] * self.gamma**(ill-ll)
+                G[actions[ll]]+=g
+            self.memory['rewards'].append(G) # remember the discounted reward at this step
+            if self.verbose:
+                print('Discounted reward for step %i = %f' %(ll,G[actions[ll]]))
+            
         
         return score # accumulated rewards
     
@@ -79,12 +92,13 @@ class mydqn():
                 print('Starting episode %i of %i' %(ee+1,nEpisodes))
             scores[ee]=self.episode()
         
-        print('Finished gathering data from %i episodes. Mean score = %f' %(nEpisodes,np.mean(scores)))
+        print('Finished gathering data from %i episodes. Mean score = %f. Max score = %f' %(nEpisodes,np.mean(scores),np.max(scores)))
         
         # learn from data:
 #        self.Q.printWeightStats()
         # TODO randomise samples 
         self.Q.batchTrain1(self.memory['state'][-nEpisodes:], self.memory['rewards'][-nEpisodes:])
+#        if self.verbose:
         self.Q.printWeightStats()
         
         return

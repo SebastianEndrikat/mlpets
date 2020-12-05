@@ -12,7 +12,7 @@ and now for something completely different:
 
 
 import numpy as np
-
+import sys
 
 # TODO
 # lists instead of dicts?
@@ -89,6 +89,8 @@ class ann():
         return
     
     def sigmoid(self,x):
+        x[x>=0.99*sys.float_info.max]= 0.99*sys.float_info.max # overflow check
+        x[x<=0.99*sys.float_info.min]= 0.99*sys.float_info.min # overflow check
         return 1./(1.+np.exp(-x)) # logistic function
     def dsigmoid(self,x): # analytic derivative
         return np.exp(-x)/(1.+np.exp(-x))**2.

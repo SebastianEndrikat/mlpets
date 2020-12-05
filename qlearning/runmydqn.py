@@ -7,15 +7,17 @@ sys.path.append('../annvanilla')
 from annvanilla import ann
 
 # set up the game environment
-from environment0 import environment
+#from environment0 import environment
+from environment1 import environment
 env=environment(randomise=True)
+#env=environment(randomise=False)
 
 
 # set up the NN
 nin=env.n
 nout=env.nActions
 hiddenLayers=np.array([20])
-activFuns=np.array(['relu'])
+activFuns=np.array(['sigmoid'])
 alpha=0.1 # learning rate
 lambd=0.001 # regularization
 Q=ann(nin,nout,hiddenLayers,alpha=alpha,lambd=lambd,activFuns=activFuns)
@@ -25,8 +27,8 @@ game=mydqn(env,Q,verbose=0)
 
 
 # train the agent
-nEpisodes=20 # in each set
-nSets=30
+nEpisodes=300 # in each set
+nSets=100
 with open('training.log','w') as fid:
     fid.write('# Set, avg score across %i episodes\n' %nEpisodes)
 for i in range(nSets):
@@ -45,3 +47,10 @@ for i in range(nSets):
     game.epsilon=eps # reset for training
     
     
+##### NOTES
+# ran environment0 with alpha=0.1 and lambda=0.001. 1 hidden layer with 20 and relu, 20 episodes and a few sets... done
+    
+# in environment1, weights blow up with relu in hidden layer. 
+# regularization doesnt help. 
+# sigmoid in all layers keeps weights under control
+# training is not fruitful tho. Maybe the agent doesnt stumple upon the prize often enough
