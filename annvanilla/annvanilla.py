@@ -84,13 +84,20 @@ class ann():
         self.activFuns[self.nLayers-1]=self.sigmoid # output layer
         self.dactivFuns[self.nLayers-1]=self.dsigmoid
 
-
+        self.MSEfile='batchTrainMSE.log'
+        with open(self.MSEfile,'w') as fid: # wipe file
+            fid.write('# Mean squared error is appended below after every eopch.\n') # write header
+            fid.write('# Initializing the network wipes any previous log file!\n')
+            fid.write('# nLayers = %i\n' %self.nLayers)
+            fid.write('# Layer sizes '+ str(self.layerSize) + '\n')
+            fid.write('# learning rate = %e\n' %self.alpha)
+            fid.write('# regularization = %e\n' %self.lambd)
 
         return
     
     def sigmoid(self,x):
-        x[x>=0.99*sys.float_info.max]= 0.99*sys.float_info.max # overflow check
-        x[x<=0.99*sys.float_info.min]= 0.99*sys.float_info.min # overflow check
+#        x[x>=0.99*sys.float_info.max]= 0.99*sys.float_info.max # overflow check
+#        x[x<=0.99*sys.float_info.min]= 0.99*sys.float_info.min # overflow check
         return 1./(1.+np.exp(-x)) # logistic function
     def dsigmoid(self,x): # analytic derivative
         return np.exp(-x)/(1.+np.exp(-x))**2.
@@ -141,8 +148,10 @@ class ann():
             self.db[i]*=0.
     
         # call forward for every sample and add to dW and db.
+        MSE=0. # added 2020-12-12
         for s in range(nx):
             e = self.forwardProp(x[s])-y[s] # here y[s] as already an array
+            MSE+=np.sum(e**2.) # sum over all output nodes
             
             # backprop:
             for i in range(self.nLayers-2,-1,-1): # backwards
@@ -159,6 +168,7 @@ class ann():
         for i in range(self.nLayers-1):
             self.dW[i] /= float(nx)
             self.db[i] /= float(nx)
+        MSE /= float(nx*self.layerSize[-1])
             
         # regularization
         for i in range(self.nLayers-1):
@@ -169,6 +179,27 @@ class ann():
         for i in range(self.nLayers-1):
             self.W[i] -= self.alpha*self.dW[i]
             self.b[i] -= self.alpha*self.db[i]
+        
+        
+        return MSE
+    
+    def trainOneEpoch(self,x,y,nbatch):
+        # pass a whole data set.
+        # this will call batch train nbatch times
+        
+        nbatch=int(nbatch) # to make sure
+        n=len(x)
+        order=np.arange(n)
+        np.random.shuffle(order) # randomize order of samples
+        nPerBatch=int(n/nbatch) # should probably be divisible. TODO: check
+        MSE=0.
+        for b in range(nbatch):
+            sel=np.arange(b*nPerBatch,(b+1)*nPerBatch)
+            MSE+=self.batchTrain1([x[order[i]] for i in sel], [y[order[i]] for i in sel])
+        MSE /= (nbatch*1.0)
+        
+        with open(self.MSEfile,'a') as fid:
+            fid.write('%e\n' %MSE)
         
         return
     

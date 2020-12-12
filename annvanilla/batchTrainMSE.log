@@ -1,0 +1,26 @@
+# Mean squared error is appended below after every eopch.
+# Initializing the network wipes any previous log file!
+# nLayers = 3
+# Layer sizes [400 100  10]
+# learning rate = 1.000000e-01
+# regularization = 1.000000e-03
+2.837930e-02
+1.567501e-02
+1.306724e-02
+1.134319e-02
+1.040638e-02
+9.665741e-03
+9.173001e-03
+8.814082e-03
+9.171500e-03
+8.474615e-03
+8.280201e-03
+8.400224e-03
+8.065369e-03
+7.921610e-03
+8.196395e-03
+7.633674e-03
+7.993911e-03
+7.704252e-03
+8.238003e-03
+7.891184e-03

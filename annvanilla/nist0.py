@@ -82,13 +82,13 @@ def batchTest2(model,x,y,ll):
 
     
 #%% settings    
-hiddenLayers=np.array([25])
+hiddenLayers=np.array([100])
 activFuns=np.array(['relu'])
 #activFuns=np.array(['sigmoid'])
-nt=50 # number of learning passes thru the whole data set
+nt=20 # number of learning passes thru the whole data set
 alpha=0.1
-batchSize=10 # sample size has to be divisible by this so far
-lambd=0.0001
+batchSize=2 # sample size has to be divisible by this so far
+lambd=0.001
 
 
 # things to adjust
@@ -143,38 +143,51 @@ model=ann(nin,nout,hiddenLayers,alpha=alpha,lambd=lambd,activFuns=activFuns)
 #%% batch train
 nb=nx/batchSize # number of batches
 
-targets=dict.fromkeys(range(nx))
-for s in range(nx):
-    targets[s]=np.zeros(model.layerSize[-1])
-    targets[s][y[s]]=1.
+if 0: # train with dictionaries
+    targets=dict.fromkeys(range(nx))
+    for s in range(nx):
+        targets[s]=np.zeros(model.layerSize[-1])
+        targets[s][y[s]]=1.
+        
+    batchx=dict.fromkeys(range(batchSize))
+    batchtargets=dict.fromkeys(range(batchSize))
     
-batchx=dict.fromkeys(range(batchSize))
-batchtargets=dict.fromkeys(range(batchSize))
+    alli=np.arange(nx)
+    t0=time.time()
+    for ll in range(nt):
+        np.random.shuffle(alli) # random order
+        for b in range(nb):
+            batchi=alli[b*batchSize:(b+1)*batchSize]
+            # build sub dicts that only contain samples from this batch
+            for s in range(batchSize):
+                batchx[s]=x[batchi[s]]
+                batchtargets[s]=targets[batchi[s]]
+            model.batchTrain1(batchx,batchtargets)
+            
+        batchTest(model,x,y,ll)
+        batchTest(model,xtest,ytest,ll)
+    #    model.printWeightStats()
+        t1=time.time()
+        print('Done iteration %i after %.2f sec.\n' %(ll,(t1-t0)))
 
-alli=np.arange(nx)
+
+
+#%%
+
+# use lists instead of dicts and then use inbuild function for training to also print MSE
+    
+xx=[x[i] for i in range(nx)]
+yy=[np.zeros(model.layerSize[-1]) for i in range(nx)]
+for i in range(nx):
+    yy[i][y[i]]=1.
+    
 t0=time.time()
 for ll in range(nt):
-    np.random.shuffle(alli) # random order
-    for b in range(nb):
-        batchi=alli[b*batchSize:(b+1)*batchSize]
-        
-        
-        # build sub dicts that only contain samples from this batch
-        for s in range(batchSize):
-            batchx[s]=x[batchi[s]]
-            batchtargets[s]=targets[batchi[s]]
-            
-        model.batchTrain1(batchx,batchtargets)
-        
-        
+    model.trainOneEpoch(xx,yy,nb)
+
+
     batchTest(model,x,y,ll)
     batchTest(model,xtest,ytest,ll)
-    model.printWeightStats()
+#    model.printWeightStats()
     t1=time.time()
     print('Done iteration %i after %.2f sec.\n' %(ll,(t1-t0)))
-
-
-
-
-
-

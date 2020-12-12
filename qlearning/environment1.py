@@ -34,6 +34,11 @@ class environment():
         # Define what that means in the environment here
         
         gameover=False
+        self.causeOfDeath=0
+        # 0 ... not dead
+        # 1 ... killed
+        # 2 ... time out
+        # 3 ... won
         
         # take the step
         if action==0:
@@ -47,18 +52,32 @@ class environment():
         else:
             raise ValueError('Undefined action was passed to environment.step()')
             
-        # see if that landed the agent on a ghost (out of bounds) cell
-        if self.ii==0 or self.ii==(self.nx-1) or self.jj==0 or self.jj==(self.ny-1):
-            gameover=True
+#        # see if that landed the agent on a ghost (out of bounds) cell
+#        if self.ii==0 or self.ii==(self.nx-1) or self.jj==0 or self.jj==(self.ny-1):
+#            gameover=True
+#            self.causeOfDeath=1
+        
+        
+        reward=self.rewards[self.ii,self.jj]
+        self.state=np.copy(self.board) # get a clean board
+        self.state[self.ii,self.jj]=self.valAgent # mark the new agent position
         
         # check if time ran out
         self.ll+=1
         if self.ll>self.nmaxsteps:
             gameover=True
+            self.causeOfDeath=2
+            
+        # check if that landed the agent on a ghost (out of bounds) cell or something in the domain that killed
+        if reward==self.rewardKill:
+            gameover=True
+            self.causeOfDeath=1
         
-        reward=self.rewards[self.ii,self.jj]
-        self.state=np.copy(self.board) # get a clean board
-        self.state[self.ii,self.jj]=self.valAgent # mark the new agent position
+        # check if won
+        if reward==self.rewardPrize:
+            gameover=True
+            self.causeOfDeath=3
+        
         
         return self.state.ravel(), gameover, reward
     
@@ -75,7 +94,7 @@ class environment():
         
         # define rewards to get
         self.rewardKill=-10. # out of bounds or somewhere in the domain 'low reward field'
-        self.rewardPrize=(self.n*1.0)**0.5 # connected to the board size, because it takes more steps to get here on larger boards
+        self.rewardPrize=(self.n*1.0)#**0.5 # connected to the board size, because it takes more steps to get here on larger boards
             
         
         # define the state, i.e. the layout of the game board
